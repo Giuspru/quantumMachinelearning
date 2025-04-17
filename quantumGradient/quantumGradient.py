@@ -44,6 +44,29 @@ def circuit(params):
     2) We'll use the gradeint function to implement an iterative function that updates the parameters of the circuit. (backpropagation like)
 
 '''
+'''
+    Function we want to implement: 0.5 * (f(theta + pi/2) - f(theta - pi/2)) 
+    where f(theta) is a quantum circuit.
+'''
+def parameter_shift_term(qnode, params, i): # qnode is the parametric circuit, params is the circuit's parameters and i i s the index of parameter respectto which we want to compute the gradient
+    shifted = params.copy() # Don't want to modify the original parameters
+    shifted = shifted.at[i].add(jnp.pi/2) # JAX function to not modify in a distributed way the parameter in i-th position
+    forward = qnode(shifted) # f(theta + pi/2)
+
+    shifted = shifted.at[i].add(-jnp.pi) 
+    backward = qnode(shifted) # f(theta - pi/2)
+
+    return 0.5 * (forward - backward)
+
+
+def parameter_shift(qnode, params):
+
+    gradients = jnp.zeros([len(params)])
+    for i in range(len(params)):
+        gradients = gradients.at[i].set(parameter_shift_term(qnode, params, i))
+
+    return gradients
+
 
 
 
@@ -51,13 +74,27 @@ def circuit(params):
 
 if __name__ == "__main__":
     
+    
     # Define the initial parameters
-    params = jnp.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+    params = jax.random.normal(key, [6])
 
     print("Parameters:", params)
     print("Expectation value:", circuit(params))
 
     fig, ax = qml.draw_mpl(circuit, decimals=2)(params)
     plt.show()
+
+    # Compute the gradient
+    print("Derivate of the function circuit respect to the first parameter:")
+    print(parameter_shift_term(circuit, params, 0))
+    grads = parameter_shift(circuit, params)
+
+    for i in range(len(grads)):
+        print("Derivate of the function circuit respect to the", i+1, "parameter:")
+        print(grads[i])
+
+
+
+    
 
 
